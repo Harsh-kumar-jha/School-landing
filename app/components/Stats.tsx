@@ -4,7 +4,8 @@
 import { useState, useEffect, useRef } from 'react';
 
 export default function Stats() {
-  const [hasAnimated, setHasAnimated] = useState(false);
+  const [isVisible, setIsVisible] = useState(false);
+  const [animationKey, setAnimationKey] = useState(0);
   const sectionRef = useRef<HTMLElement>(null);
 
   const stats = [
@@ -49,26 +50,55 @@ export default function Stats() {
   useEffect(() => {
     const observer = new IntersectionObserver(
       (entries) => {
-        if (entries[0].isIntersecting && !hasAnimated) {
-          setHasAnimated(true);
-        }
+        setIsVisible(entries[0].isIntersecting);
       },
-      { threshold: 0.5 }
+      { 
+        threshold: 0.1, // Reduced threshold for better mobile compatibility
+        rootMargin: '0px 0px -10% 0px' // Trigger when element is 10% from bottom of viewport
+      }
     );
 
     if (sectionRef.current) {
       observer.observe(sectionRef.current);
     }
 
-    return () => observer.disconnect();
-  }, [hasAnimated]);
+    return () => {
+      observer.disconnect();
+    };
+  }, []);
+
+  // Repeating animation cycle when section is visible
+  useEffect(() => {
+    if (!isVisible) return;
+
+    const startAnimationCycle = () => {
+      // Start animation immediately
+      setAnimationKey(prev => prev + 1);
+      
+      // Set up repeating cycle: animate for 2s, pause for 10s, then restart
+      const intervalId = setInterval(() => {
+        setAnimationKey(prev => prev + 1);
+      }, 12000); // 12 seconds total cycle (2s animation + 10s pause)
+
+      return intervalId;
+    };
+
+    const intervalId = startAnimationCycle();
+
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [isVisible]);
 
   const CountUpNumber = ({ endValue, display }: { endValue: number; display: string }) => {
     const [currentValue, setCurrentValue] = useState(0);
 
     useEffect(() => {
-      if (!hasAnimated) return;
+      if (!isVisible || animationKey === 0) return;
 
+      // Reset to 0 and start animation
+      setCurrentValue(0);
+      
       const duration = 2000; // 2 seconds
       const startTime = Date.now();
       const startValue = 0;
@@ -89,7 +119,7 @@ export default function Stats() {
       };
 
       requestAnimationFrame(updateValue);
-    }, [hasAnimated, endValue]);
+    }, [animationKey, endValue, isVisible]);
 
     const formatNumber = (num: number) => {
       if (display.includes('%')) return `${num}%`;
@@ -100,7 +130,7 @@ export default function Stats() {
 
     return (
       <div className="text-4xl font-bold text-white mb-2">
-        {hasAnimated ? formatNumber(currentValue) : '0'}
+        {formatNumber(currentValue)}
       </div>
     );
   };
@@ -123,7 +153,7 @@ export default function Stats() {
               <div className="w-16 h-16 flex items-center justify-center bg-yellow-400 rounded-full mx-auto mb-4">
                 <i className={`${stat.icon} text-2xl text-blue-900`}></i>
               </div>
-              <CountUpNumber endValue={stat.number} display={stat.display} />
+              <CountUpNumber endValue={stat.number} display={stat.display} key={animationKey} />
               <div className="text-blue-100 font-medium">{stat.label}</div>
             </div>
           ))}
